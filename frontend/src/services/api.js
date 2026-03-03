@@ -38,10 +38,6 @@ async function request(endpoint, options = {}) {
   // 3. Handle 401 Unauthorized (Token expired or invalid)
   if (response.status === 401) {
     localStorage.removeItem("token");
-    // Optional: redirect to login if not already there
-    if (!window.location.pathname.includes("/login")) {
-      window.location.href = "/login";
-    }
     throw new Error("Istunto vanhentunut. Kirjaudu sisään uudelleen.");
   }
 

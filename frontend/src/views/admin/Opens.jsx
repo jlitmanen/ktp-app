@@ -29,6 +29,7 @@ const MatchRow = ({ match, players, onSave }) => {
     wins2: match.wins2,
     game_date: match.game_date || "",
     result: match.result || "", // For the "6-0, 6-3" details
+    tournament_id: match.tournament_id || null,
   });
 
   const handleSave = async () => {
@@ -188,7 +189,6 @@ const AdminOpens = () => {
   const [players, setPlayers] = useState([]);
   const [selectedOpenId, setSelectedOpenId] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
 
   const [formData, setFormData] = useState({
     id: "",
@@ -217,7 +217,7 @@ const AdminOpens = () => {
       setOpens(o || []);
       setPlayers(p || []);
     } catch (err) {
-      setError("Datan haku epäonnistui.");
+      console.error("Datan haku epäonnistui:", err);
     } finally {
       setLoading(false);
     }
@@ -266,7 +266,7 @@ const AdminOpens = () => {
     try {
       await matchService.update(matchId, updatedData);
       fetchTournamentGames();
-    } catch (err) {
+    } catch {
       alert("Tallennus epäonnistui.");
     }
   };

@@ -49,26 +49,9 @@ export const contentService = {
   delete: (id) => api.delete(`/api/content/${id}`),
 };
 
-/**
- * Service for Authentication
- */
-export const authService = {
-  login: async (credentials) => {
-    const data = await api.post("/api/login", credentials);
-    if (data.token) localStorage.setItem("token", data.token);
-    return data;
-  },
-  logout: () => {
-    localStorage.removeItem("token");
-  },
-  // ADD THIS FUNCTION:
-  checkStatus: () => api.get("/api/auth/status"),
-};
-
 export default {
   players: playerService,
   matches: matchService,
   opens: openService,
   content: contentService,
-  auth: authService,
 };

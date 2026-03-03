@@ -8,26 +8,24 @@ import {
 import Layout from "./components/Layout";
 import { Spinner, Container } from "react-bootstrap";
 
-// Public Views
-import Home from "./views/Home";
-import Ranking from "./views/Ranking";
-import Results from "./views/Results";
-import Open from "./views/Open";
-import About from "./views/About";
-import { Login, Signup } from "./views/Auth";
-
-// Admin Views
-import AdminDashboard from "./views/admin/Dashboard";
-import AdminRanking from "./views/admin/Ranking";
-import AdminResults from "./views/admin/Results";
-import AdminOpens from "./views/admin/Opens";
-import AdminContent from "./views/admin/Content";
+import { Home, Ranking, Results, Open, About } from "./views";
+import {
+  AdminDashboard,
+  AdminRanking,
+  AdminResults,
+  AdminOpens,
+  AdminContent,
+} from "./views/admin";
+import { Login } from "./views/Auth";
 
 // Services
-import { authService } from "./services/dataService";
+import { authService } from "./services/authService";
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    // Initialize from localStorage immediately to prevent flash of logged-out state
+    return !!localStorage.getItem("token");
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -37,6 +35,10 @@ function App() {
         setIsAuthenticated(status.isAuthenticated);
       } catch (err) {
         console.error("Auth check failed:", err);
+        // If token exists in localStorage but server validation fails, clear it
+        if (localStorage.getItem("token")) {
+          localStorage.removeItem("token");
+        }
         setIsAuthenticated(false);
       } finally {
         setLoading(false);
@@ -46,9 +48,22 @@ function App() {
     checkAuth();
   }, []);
 
+  // Listen for storage changes (logout in other tabs/windows)
+  useEffect(() => {
+    const handleStorageChange = (e) => {
+      if (e.key === "token") {
+        // Token was removed (logout) or changed in another tab
+        setIsAuthenticated(!!e.newValue);
+      }
+    };
+
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
   const handleLogout = async () => {
     try {
-      await authService.logout();
+      authService.logout();
       setIsAuthenticated(false);
     } catch (err) {
       console.error("Logout failed:", err);
@@ -86,7 +101,6 @@ function App() {
               )
             }
           />
-          <Route path="/signup" element={<Signup />} />
 
           {/* Admin Routes */}
           {isAuthenticated ? (

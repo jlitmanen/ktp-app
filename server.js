@@ -66,13 +66,30 @@ const authenticateToken = (req, res, next) => {
   });
 };
 
-// Add this route near your login route
-// authenticateToken is the middleware we created earlier
-app.get("/api/auth/status", authenticateToken, (req, res) => {
-  // If the code reaches here, the token is valid
-  res.json({
-    authenticated: true,
-    user: req.user, // req.user was set by the middleware
+// --- PUBLIC AUTH STATUS ENDPOINT ---
+// Check if user is authenticated (doesn't require a valid token)
+app.get("/api/auth/status", (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
+
+  if (!token) {
+    return res.json({
+      isAuthenticated: false,
+      user: null,
+    });
+  }
+
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) {
+      return res.json({
+        isAuthenticated: false,
+        user: null,
+      });
+    }
+    res.json({
+      isAuthenticated: true,
+      user: user,
+    });
   });
 });
 
