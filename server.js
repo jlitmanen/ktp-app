@@ -19,7 +19,7 @@ app.use(
 );
 app.use(express.json());
 
-// --- LOGIN ROUTE ---q
+// --- LOGIN ROUTE ---
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
 
@@ -136,30 +136,41 @@ app.delete("/api/players/:id", async (req, res) => {
   res.sendStatus(200);
 });
 
-// --- MATCH CRUD (Updated with Player Filter) ---
+// --- MATCH CRUD (Updated with Player Filter and Time Filter) ---
 app.get("/api/results", async (req, res) => {
   const page = parseInt(req.query.page) || 1;
-  const playerId = req.query.playerId; // Get playerId from query params
+  const playerId = req.query.playerId;
+  const showAll = req.query.showAll === "true";
   const limit = 10;
   const offset = (page - 1) * limit;
 
   try {
-    // 1. Build the dynamic WHERE clause
-    let whereClause = "";
+    let whereConditions = [];
     let args = [];
 
     if (playerId) {
-      whereClause = "WHERE (m.player1 = ? OR m.player2 = ?)";
-      args = [playerId, playerId];
+      whereConditions.push("(m.player1 = ? OR m.player2 = ?)");
+      args.push(playerId, playerId);
     }
 
-    // 2. Get total count for pagination (with filter)
+    if (!showAll) {
+      whereConditions.push(
+        "m.game_date >= strftime('%Y-%m-%d', 'now', '-1 year')",
+      );
+    }
+
+    const whereClause =
+      whereConditions.length > 0
+        ? "WHERE " + whereConditions.join(" AND ")
+        : "";
+
+    // Get total count for pagination
     const countRs = await db.execute({
       sql: `SELECT COUNT(*) as total FROM matches m ${whereClause}`,
       args: args,
     });
 
-    // 3. Get matches (with filter)
+    // Get matches
     const matchesArgs = [...args, limit, offset];
     const rs = await db.execute({
       sql: `SELECT m.*, p1.name as homename, p2.name as awayname, t.name as tournament_name

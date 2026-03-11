@@ -1,12 +1,4 @@
 import React, { useState, useEffect } from "react";
-import {
-  Form,
-  Table,
-  Pagination,
-  Container,
-  Spinner,
-  Alert,
-} from "react-bootstrap";
 import { useParams, useNavigate } from "react-router-dom";
 import { matchService, playerService } from "../services/dataService";
 
@@ -20,6 +12,7 @@ const Results = () => {
   const [selectedPid, setSelectedPid] = useState("");
   const [totalPages, setTotalPages] = useState(1);
   const [expandedRow, setExpandedRow] = useState(null);
+  const [showAll, setShowAll] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -39,8 +32,7 @@ const Results = () => {
     const fetchResults = async () => {
       try {
         setLoading(true);
-        const data = await matchService.getResults(currentPage, selectedPid);
-        // data is expected to have { items: [], totalPages: X }
+        const data = await matchService.getResults(currentPage, selectedPid, showAll);
         setResults(data.items || []);
         setTotalPages(data.totalPages || 1);
         setError(null);
@@ -53,10 +45,15 @@ const Results = () => {
     };
 
     fetchResults();
-  }, [currentPage, selectedPid]);
+  }, [currentPage, selectedPid, showAll]);
 
   const handlePlayerChange = (e) => {
     setSelectedPid(e.target.value);
+    navigate("/results/1");
+  };
+
+  const handleShowAllChange = (e) => {
+    setShowAll(e.target.checked);
     navigate("/results/1");
   };
 
@@ -65,50 +62,58 @@ const Results = () => {
   };
 
   const handlePageChange = (pageNumber) => {
-    if (pageNumber !== currentPage) {
+    if (
+      pageNumber >= 1 &&
+      pageNumber <= totalPages &&
+      pageNumber !== currentPage
+    ) {
       navigate(`/results/${pageNumber}`);
     }
   };
 
   const renderPagination = () => {
-    let items = [];
-    const startPage = Math.max(1, currentPage - 4);
-    const endPage = Math.min(totalPages, currentPage + 4);
+    const items = [];
+    const startPage = Math.max(1, currentPage - 2);
+    const endPage = Math.min(totalPages, currentPage + 2);
 
+    // First
     items.push(
-      <Pagination.First
+      <button
         key="first"
         disabled={currentPage === 1}
         onClick={() => handlePageChange(1)}
-      />,
+        className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-alabaster_grey-400 bg-white text-sm font-medium text-black-700 hover:bg-alabaster_grey-500 disabled:opacity-50"
+      >
+        «
+      </button>,
     );
-
-    if (startPage > 1) {
-      items.push(<Pagination.Ellipsis key="start-ellipsis" disabled />);
-    }
 
     for (let number = startPage; number <= endPage; number++) {
       items.push(
-        <Pagination.Item
+        <button
           key={number}
-          active={number === currentPage}
           onClick={() => handlePageChange(number)}
+          className={`relative inline-flex items-center px-4 py-2 border border-alabaster_grey-400 text-sm font-medium transition-colors ${
+            number === currentPage
+              ? "z-10 bg-orange border-orange text-prussian_blue"
+              : "bg-white text-black-700 hover:bg-alabaster_grey-500"
+          }`}
         >
           {number}
-        </Pagination.Item>,
+        </button>,
       );
     }
 
-    if (endPage < totalPages) {
-      items.push(<Pagination.Ellipsis key="end-ellipsis" disabled />);
-    }
-
+    // Last
     items.push(
-      <Pagination.Last
+      <button
         key="last"
         disabled={currentPage === totalPages}
         onClick={() => handlePageChange(totalPages)}
-      />,
+        className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-alabaster_grey-400 bg-white text-sm font-medium text-black-700 hover:bg-alabaster_grey-500 disabled:opacity-50"
+      >
+        »
+      </button>,
     );
 
     return items;
@@ -116,93 +121,163 @@ const Results = () => {
 
   if (loading && results.length === 0) {
     return (
-      <Container className="text-center p-5">
-        <Spinner animation="border" variant="primary" />
-        <p className="mt-2">Ladataan tuloksia...</p>
-      </Container>
+      <div className="flex flex-col items-center justify-center p-12">
+        <svg
+          className="animate-spin h-10 w-10 text-orange"
+          xmlns="http://www.w3.org/2000/svg"
+          fill="none"
+          viewBox="0 0 24 24"
+        >
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          ></circle>
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          ></path>
+        </svg>
+        <p className="mt-4 text-prussian_blue font-medium">
+          Ladataan tuloksia...
+        </p>
+      </div>
     );
   }
 
   return (
-    <Container>
-      <h1 className="mb-4">Ottelutulokset</h1>
+    <div className="space-y-6">
+      <h1 className="text-3xl font-extrabold text-prussian_blue">
+        Ottelutulokset
+      </h1>
 
       {error && (
-        <Alert variant="danger" className="mb-4">
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           {error}
-        </Alert>
+        </div>
       )}
 
-      <Form className="mb-4">
-        <Form.Group controlId="playerSelect">
-          <Form.Label>Suodata pelaajan mukaan:</Form.Label>
-          <Form.Select value={selectedPid} onChange={handlePlayerChange}>
+      <div className="flex flex-col sm:flex-row gap-6 items-end">
+        <div className="w-full max-w-md">
+          <label
+            htmlFor="player-filter"
+            className="block text-sm font-bold text-prussian_blue mb-2"
+          >
+            Suodata pelaajan mukaan
+          </label>
+          <select
+            id="player-filter"
+            className="block w-full px-3 py-2 bg-white border border-alabaster_grey-400 rounded-md shadow-sm focus:outline-none focus:ring-orange focus:border-orange sm:text-sm"
+            value={selectedPid}
+            onChange={handlePlayerChange}
+          >
             <option value="">Kaikki pelaajat</option>
             {players.map((player) => (
               <option key={player.id} value={player.id}>
                 {player.name}
               </option>
             ))}
-          </Form.Select>
-        </Form.Group>
-      </Form>
+          </select>
+        </div>
 
-      <Table size="sm" hover responsive id="myTable" className="mb-4">
-        <thead className="table-dark">
-          <tr>
-            <th>Päivämäärä</th>
-            <th>Ottelu</th>
-            <th>Tulos</th>
-          </tr>
-        </thead>
-        <tbody className="table-group-divider">
-          {results.length > 0 ? (
-            results.map((c) => (
-              <React.Fragment key={c.id}>
-                <tr
-                  className="clickable-row"
-                  onClick={() => toggleRow(c.id)}
-                  style={{ cursor: "pointer" }}
-                >
-                  <td>{c.date || c.game_date}</td>
-                  <td>
-                    {c.homename} - {c.awayname}
-                  </td>
-                  <td>{c.res || `${c.wins1}-${c.wins2}`}</td>
-                </tr>
-                {expandedRow === c.id && (
-                  <tr className="expanded-row fade-in">
-                    <td colSpan="3" className="bg-light">
-                      <div className="p-3">
-                        <strong>Lisätiedot:</strong>
-                        <div
-                          className="mt-1"
-                          dangerouslySetInnerHTML={{
-                            __html: c.result || "Ei lisätietoja",
-                          }}
-                        />
-                      </div>
+        <div className="flex items-center mb-2">
+          <input
+            id="show-all"
+            type="checkbox"
+            className="h-4 w-4 text-orange border-alabaster_grey-400 rounded focus:ring-orange"
+            checked={showAll}
+            onChange={handleShowAllChange}
+          />
+          <label
+            htmlFor="show-all"
+            className="ml-2 block text-sm font-bold text-prussian_blue"
+          >
+            Näytä kaikki ottelut
+          </label>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto border border-alabaster_grey-400 rounded-lg shadow-sm">
+        <table className="min-w-full divide-y divide-alabaster_grey-300">
+          <thead className="bg-prussian_blue">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-bold text-orange uppercase tracking-wider">
+                Päivämäärä
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-orange uppercase tracking-wider">
+                Ottelu
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-bold text-orange uppercase tracking-wider">
+                Tulos
+              </th>
+            </tr>
+          </thead>
+          <tbody className="bg-white divide-y divide-alabaster_grey-200">
+            {results.length > 0 ? (
+              results.map((c, index) => (
+                <React.Fragment key={c.id || index}>
+                  <tr
+                    onClick={() => toggleRow(c.id || index)}
+                    className="hover:bg-alabaster_grey-800 cursor-pointer transition-colors"
+                  >
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-black-700">
+                      {c.date || c.game_date}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-black">
+                      {c.homename} - {c.awayname}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-bold text-prussian_blue">
+                      {c.res || `${c.wins1}-${c.wins2}`}
                     </td>
                   </tr>
-                )}
-              </React.Fragment>
-            ))
-          ) : (
-            <tr>
-              <td colSpan="3" className="text-center p-4">
-                Ei tuloksia löytynyt.
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </Table>
+                  {expandedRow === (c.id || index) && (
+                    <tr className="bg-alabaster_grey-900 fade-in">
+                      <td colSpan="3" className="px-6 py-4">
+                        <div className="text-sm">
+                          <strong className="text-prussian_blue">
+                            Lisätiedot:
+                          </strong>
+                          <div
+                            className="mt-2 text-black prose prose-sm max-w-none"
+                            dangerouslySetInnerHTML={{
+                              __html: c.result || "Ei lisätietoja",
+                            }}
+                          />
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </React.Fragment>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan="3"
+                  className="px-6 py-10 text-center text-alabaster_grey-300 italic"
+                >
+                  Ei tuloksia löytynyt.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
       {totalPages > 1 && (
-        <Pagination className="justify-content-center">
-          {renderPagination()}
-        </Pagination>
+        <div className="flex justify-center mt-8">
+          <nav
+            className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px"
+            aria-label="Pagination"
+          >
+            {renderPagination()}
+          </nav>
+        </div>
       )}
-    </Container>
+    </div>
   );
 };
 

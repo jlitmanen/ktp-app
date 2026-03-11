@@ -1,18 +1,14 @@
-import React from 'react';
-import { Container } from 'react-bootstrap';
-
 const Home = () => {
   return (
-    <Container className="text-center">
-      <div>
+    <div className="flex flex-col items-center justify-center py-8">
+      <div className="w-full max-w-2xl px-4">
         <img
           src="/img/dennis.jpg"
           alt="Dennis"
-          className="img-fluid rounded shadow-sm"
-          style={{ maxWidth: '100%', height: 'auto' }}
+          className="w-full h-auto rounded-lg shadow-2xl border-4 border-orange"
         />
       </div>
-    </Container>
+    </div>
   );
 };
 

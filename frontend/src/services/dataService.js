@@ -6,6 +6,7 @@ import api from "./api";
 export const playerService = {
   getAll: () => api.get("/api/players"),
   getRanking: () => api.get("/api/ranking"),
+  getKtpFinalRanking: () => api.get("/api/ktp-final-rank"),
   getById: (id) => api.get(`/api/players/${id}`),
   create: (data) => api.post("/api/players", data),
   update: (id, data) => api.put(`/api/players/${id}`, data),
@@ -16,9 +17,9 @@ export const playerService = {
  * Service for Match results management
  */
 export const matchService = {
-  getResults: (page = 1, playerId = "") =>
+  getResults: (page = 1, playerId = "", showAll = false) =>
     api.get(
-      `/api/results?page=${page}${playerId ? `&playerId=${playerId}` : ""}`,
+      `/api/results?page=${page}${playerId ? `&playerId=${playerId}` : ""}${showAll ? `&showAll=true` : ""}`,
     ),
   getById: (id) => api.get(`/api/matches/${id}`),
   create: (data) => api.post("/api/matches", data),
