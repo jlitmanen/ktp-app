@@ -10,14 +10,29 @@ const MatchRow = ({ match, players, onSave }) => {
 
   // Local state for editing
   const [editData, setEditData] = useState({
-    player1: match.player1,
-    player2: match.player2,
-    wins1: match.wins1,
-    wins2: match.wins2,
-    game_date: match.game_date || "",
-    result: match.result || "", // For the "6-0, 6-3" details
-    tournament_id: match.tournament_id || null,
+    player1: match?.player1 || "",
+    player2: match?.player2 || "",
+    wins1: match?.wins1 || 0,
+    wins2: match?.wins2 || 0,
+    game_date: match?.game_date || match?.date || "",
+    result: match?.result || "",
+    tournament_id: match?.tournament_id || null,
   });
+
+  // Sync with prop changes
+  useEffect(() => {
+    if (match) {
+      setEditData({
+        player1: match.player1 || "",
+        player2: match.player2 || "",
+        wins1: match.wins1 || 0,
+        wins2: match.wins2 || 0,
+        game_date: match.game_date || match.date || "",
+        result: match.result || "",
+        tournament_id: match.tournament_id || null,
+      });
+    }
+  }, [match]);
 
   const handleSave = async () => {
     await onSave(match.id, editData);
@@ -137,29 +152,31 @@ const MatchRow = ({ match, players, onSave }) => {
   }
 
   // Normal View Mode
+  if (!match) return null;
+
   return (
     <tr className="hover:bg-alabaster_grey-800 transition-colors border-b border-alabaster_grey-200">
       <td className="px-4 py-3 text-black-700 text-sm">
-        {match.game_date}
+        {match.game_date || match.date || "-"}
       </td>
       <td className="px-4 py-3">
-        <div className="font-bold text-black">{match.homename}</div>
-        <div className="text-black-700 text-sm">{match.awayname}</div>
+        <div className="font-bold text-black">{match.home || match.homename || "-"}</div>
+        <div className="text-black-700 text-sm">{match.away || match.awayname || "-"}</div>
       </td>
       <td className="px-4 py-3">
         <div className="flex flex-col gap-1">
           <span className="inline-flex items-center justify-center bg-prussian_blue text-white text-xs font-bold px-2 py-0.5 rounded w-6">
-            {match.wins1}
+            {match.wins1 ?? 0}
           </span>
           <span className="inline-flex items-center justify-center bg-alabaster_grey-500 text-black text-xs font-bold px-2 py-0.5 rounded w-6 border border-alabaster_grey-400">
-            {match.wins2}
+            {match.wins2 ?? 0}
           </span>
         </div>
       </td>
       <td className="px-4 py-3 text-xs text-black-700 italic">
-        {match.result?.split("\\n").map((line, i) => (
+        {match.result ? match.result.split("\n").map((line, i) => (
           <div key={i}>{line}</div>
-        ))}
+        )) : null}
       </td>
       <td className="px-4 py-3 text-right">
         <button
@@ -190,6 +207,11 @@ const AdminOpens = () => {
   const [showGamesModal, setShowGamesModal] = useState(false);
   const [tournamentGames, setTournamentGames] = useState([]);
   const [gamesLoading, setGamesLoading] = useState(false);
+
+  // Debug: log when tournamentGames changes
+  useEffect(() => {
+    console.log("tournamentGames state updated:", tournamentGames);
+  }, [tournamentGames]);
 
   const years = [2024, 2025, 2026, 2027];
 
@@ -235,16 +257,42 @@ const AdminOpens = () => {
   };
 
   const fetchTournamentGames = async () => {
-    if (!selectedOpenId) return;
+    if (!selectedOpenId) {
+      console.log("No selected tournament ID");
+      return;
+    }
+    console.log("Fetching tournament games for ID:", selectedOpenId);
     setGamesLoading(true);
     try {
       const data = await openService.getMatches(selectedOpenId);
-      const gamesArray = data.matches || [];
-      setTournamentGames(gamesArray);
+      console.log("API Response for tournament", selectedOpenId, ":", data);
+
+      if (!data) {
+        console.error("No data received");
+        setTournamentGames([]);
+        return;
+      }
+
+      if (!data.matches) {
+        console.error("Response missing 'matches' property:", data);
+        setTournamentGames([]);
+        return;
+      }
+
+      if (!Array.isArray(data.matches)) {
+        console.error("'matches' is not an array:", typeof data.matches, data.matches);
+        setTournamentGames([]);
+        return;
+      }
+
+      console.log("Setting tournamentGames to:", data.matches);
+      setTournamentGames(data.matches);
     } catch (err) {
-      console.error("Haku epäonnistui:", err);
+      console.error("Tournament games fetch failed:", err);
       setTournamentGames([]);
     } finally {
+      console.log("tournamentGames state after fetch:", tournamentGames);
+
       setGamesLoading(false);
     }
   };
@@ -274,9 +322,9 @@ const AdminOpens = () => {
         <div className="lg:col-span-5">
           <div className="bg-white p-6 rounded-lg border border-alabaster_grey-400 shadow-sm space-y-4">
             <label className="block text-sm font-bold text-prussian_blue">Valitse turnaus</label>
-            <select 
+            <select
               className="block w-full px-3 py-2 bg-white border border-alabaster_grey-400 rounded-md shadow-sm focus:outline-none focus:ring-orange focus:border-orange sm:text-sm"
-              value={selectedOpenId} 
+              value={selectedOpenId}
               onChange={handleSelectChange}
             >
               <option value="">+ Luo uusi...</option>
@@ -367,8 +415,8 @@ const AdminOpens = () => {
                     <span className="ml-2 text-sm font-medium text-black">Päätetty</span>
                   </label>
                 </div>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className="w-full px-4 py-3 bg-orange text-prussian_blue font-bold rounded-md hover:bg-orange-600 transition-colors shadow-md mt-4"
                 >
                   Tallenna turnaus
@@ -383,7 +431,6 @@ const AdminOpens = () => {
       {showGamesModal && (
         <div className="fixed inset-0 z-50 overflow-y-auto" aria-labelledby="modal-title" role="dialog" aria-modal="true">
           <div className="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
-            <div className="fixed inset-0 bg-black bg-opacity-75 transition-opacity" aria-hidden="true" onClick={() => setShowGamesModal(false)}></div>
             <span className="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
             <div className="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-4xl sm:w-full">
               <div className="bg-prussian_blue px-6 py-4 flex justify-between items-center border-b border-orange">
@@ -400,32 +447,33 @@ const AdminOpens = () => {
                   </div>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="min-w-full divide-y divide-alabaster_grey-300">
-                      <thead className="bg-alabaster_grey-800">
-                        <tr>
-                          <th className="px-4 py-2 text-left text-xs font-bold text-prussian_blue uppercase tracking-wider">Pvm</th>
-                          <th className="px-4 py-2 text-left text-xs font-bold text-prussian_blue uppercase tracking-wider">Pelaajat</th>
-                          <th className="px-4 py-2 text-left text-xs font-bold text-prussian_blue uppercase tracking-wider">Tulos</th>
-                          <th className="px-4 py-2 text-left text-xs font-bold text-prussian_blue uppercase tracking-wider">Lisätiedot</th>
-                          <th className="px-4 py-2 text-right text-xs font-bold text-prussian_blue uppercase tracking-wider">Toiminnot</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white divide-y divide-alabaster_grey-200">
-                        {tournamentGames?.map((g) => (
-                          <MatchRow
-                            key={g.id}
-                            match={g}
-                            players={players}
-                            onSave={handleSaveMatch}
-                          />
-                        ))}
-                        {tournamentGames?.length === 0 && (
+                    {tournamentGames && tournamentGames.length > 0 ? (
+                      <table className="min-w-full divide-y divide-alabaster_grey-300">
+                        <thead className="bg-alabaster_grey-800">
                           <tr>
-                            <td colSpan="5" className="px-4 py-8 text-center text-alabaster_grey-300 italic">Ei otteluita löydetty.</td>
+                            <th className="px-4 py-2 text-left text-xs font-bold text-prussian_blue uppercase tracking-wider">Pvm</th>
+                            <th className="px-4 py-2 text-left text-xs font-bold text-prussian_blue uppercase tracking-wider">Pelaajat</th>
+                            <th className="px-4 py-2 text-left text-xs font-bold text-prussian_blue uppercase tracking-wider">Tulos</th>
+                            <th className="px-4 py-2 text-left text-xs font-bold text-prussian_blue uppercase tracking-wider">Lisätiedot</th>
+                            <th className="px-4 py-2 text-right text-xs font-bold text-prussian_blue uppercase tracking-wider">Toiminnot</th>
                           </tr>
-                        )}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-alabaster_grey-200">
+                          {tournamentGames.map((g) => (
+                            <MatchRow
+                              key={g.id}
+                              match={g}
+                              players={players}
+                              onSave={handleSaveMatch}
+                            />
+                          ))}
+                        </tbody>
+                      </table>
+                    ) : (
+                      <div className="text-center text-alabaster_grey-300 italic py-8">
+                        Ei otteluita löydetty.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>

@@ -19,10 +19,7 @@ import {
 import { authService } from "./services/authService";
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    // Initialize from localStorage immediately to prevent flash of logged-out state
-    return !!localStorage.getItem("token");
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -32,10 +29,6 @@ function App() {
         setIsAuthenticated(status.isAuthenticated);
       } catch (err) {
         console.error("Auth check failed:", err);
-        // If token exists in localStorage but server validation fails, clear it
-        if (localStorage.getItem("token")) {
-          localStorage.removeItem("token");
-        }
         setIsAuthenticated(false);
       } finally {
         setLoading(false);
@@ -45,22 +38,9 @@ function App() {
     checkAuth();
   }, []);
 
-  // Listen for storage changes (logout in other tabs/windows)
-  useEffect(() => {
-    const handleStorageChange = (e) => {
-      if (e.key === "token") {
-        // Token was removed (logout) or changed in another tab
-        setIsAuthenticated(!!e.newValue);
-      }
-    };
-
-    window.addEventListener("storage", handleStorageChange);
-    return () => window.removeEventListener("storage", handleStorageChange);
-  }, []);
-
   const handleLogout = async () => {
     try {
-      authService.logout();
+      await authService.logout();
       setIsAuthenticated(false);
     } catch (err) {
       console.error("Logout failed:", err);

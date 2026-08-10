@@ -2,29 +2,65 @@ const BASE_URL = import.meta.env.VITE_API_URL || "";
 const isDev = import.meta.env.DEV;
 
 /**
+ * Sanitize object to prevent XSS and injection attacks
+ */
+function sanitizeObject(obj) {
+  if (typeof obj !== 'object' || obj === null) return obj;
+  
+  const sanitized = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === 'string') {
+      // Basic XSS prevention - remove script tags and html entities
+      sanitized[key] = value
+        .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    } else if (typeof value === 'object' && value !== null) {
+      sanitized[key] = sanitizeObject(value);
+    } else {
+      sanitized[key] = value;
+    }
+  }
+  return sanitized;
+}
+
+/**
  * Generic fetch wrapper for API calls
  */
 async function request(endpoint, options = {}) {
   const url = `${BASE_URL}${endpoint}`;
 
-  // 1. Get the token from storage
-  const token = localStorage.getItem("token");
+  // Sanitize request body if present (skip for login endpoint)
+  let sanitizedOptions = options;
+  if (options.body && !endpoint.includes('/login')) {
+    try {
+      const bodyObj = typeof options.body === 'string' 
+        ? JSON.parse(options.body) 
+        : options.body;
+      sanitizedOptions = {
+        ...options,
+        body: JSON.stringify(sanitizeObject(bodyObj))
+      };
+    } catch (e) {
+      // If parsing fails, use original body
+      sanitizedOptions = options;
+    }
+  }
 
   const config = {
-    ...options,
+    ...sanitizedOptions,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
-      // 2. Automatically attach Authorization header if token exists
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...options.headers,
+      ...sanitizedOptions.headers,
     },
+    credentials: 'include', // Required for cookies to be sent
   };
 
   if (isDev) {
     console.log(`[API Request] ${options.method || "GET"} ${url}`, {
       headers: config.headers,
-      body: options.body ? JSON.parse(options.body) : null,
+      body: config.body ? JSON.parse(config.body) : null,
     });
   }
 
@@ -35,9 +71,8 @@ async function request(endpoint, options = {}) {
     throw new Error(`Verkkovirhe: ${error.message}`);
   }
 
-  // 3. Handle 401 Unauthorized (Token expired or invalid)
+  // Handle 401 Unauthorized (Token expired or invalid)
   if (response.status === 401) {
-    localStorage.removeItem("token");
     throw new Error("Istunto vanhentunut. Kirjaudu sisään uudelleen.");
   }
 

@@ -3,13 +3,12 @@ import api from "./api";
 export const authService = {
   login: async (credentials) => {
     const data = await api.post("/api/login", credentials);
-    if (data.token) localStorage.setItem("token", data.token);
+    // Token is now stored in httpOnly cookie by backend
     return data;
   },
-  logout: () => {
-    localStorage.removeItem("token");
+  logout: async () => {
+    await api.post("/api/logout");
   },
-  // ADD THIS FUNCTION:
   checkStatus: () => api.get("/api/auth/status"),
 };
 export default {

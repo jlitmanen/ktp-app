@@ -65,7 +65,7 @@ const Login = ({ setAuth }) => {
               />
             </div>
             <div>
-              <label htmlFor="password" throws className="sr-only">
+              <label htmlFor="password" className="sr-only">
                 Salasana
               </label>
               <input
@@ -116,17 +116,7 @@ const Login = ({ setAuth }) => {
           </div>
         </form>
 
-        <div className="text-center">
-          <p className="text-sm text-black">
-            Tarvitsetko tunnukset?{" "}
-            <Link
-              to="/signup"
-              className="font-medium text-orange hover:text-orange-600"
-            >
-              Rekisteröidy
-            </Link>
-          </p>
-        </div>
+
       </div>
     </div>
   );

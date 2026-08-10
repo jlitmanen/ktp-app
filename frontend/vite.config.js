@@ -9,21 +9,10 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to the Express backend
       "/api": {
-        target: "http://localhost:3000",
+        target: "http://localhost:3001",
         changeOrigin: true,
-      },
-      // Proxy Auth routes to the Express backend
-      "/login": {
-        target: "http://localhost:3000",
-        changeOrigin: true,
-      },
-      "/logout": {
-        target: "http://localhost:3000",
-        changeOrigin: true,
-      },
-      "/signup": {
-        target: "http://localhost:3000",
-        changeOrigin: true,
+        // Required for cookies to work with credentials
+        withCredentials: true,
       },
     },
   },

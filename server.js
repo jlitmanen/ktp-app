@@ -1,6 +1,7 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
+import cookieParser from "cookie-parser";
 import { createClient } from "@libsql/client";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
@@ -12,12 +13,16 @@ const db = createClient({
   authToken: process.env.TURSO_TOKEN,
 });
 
+const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, '');
+
 app.use(
   cors({
-    origin: process.env.FRONTEND_URL || "*",
+    origin: frontendUrl,
+    credentials: true,
   }),
 );
 app.use(express.json());
+app.use(cookieParser());
 
 // --- LOGIN ROUTE ---
 app.post("/api/login", async (req, res) => {
@@ -46,7 +51,15 @@ app.post("/api/login", async (req, res) => {
       { expiresIn: "24h" },
     );
 
-    res.json({ token, username: user.username });
+    // Set JWT as httpOnly cookie
+    res.cookie("token", token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: process.env.NODE_ENV === "production" ? "strict" : "lax",
+      maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    });
+
+    res.json({ username: user.username });
   } catch (err) {
     res.status(500).json({ error: "Kirjautuminen epäonnistui" });
   }
@@ -54,8 +67,8 @@ app.post("/api/login", async (req, res) => {
 
 // --- MIDDLEWARE TO PROTECT ROUTES ---
 const authenticateToken = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  // Check cookie first, then Authorization header
+  const token = req.cookies.token || (req.headers["authorization"] && req.headers["authorization"].split(" ")[1]);
 
   if (!token) return res.sendStatus(401);
 
@@ -69,8 +82,7 @@ const authenticateToken = (req, res, next) => {
 // --- PUBLIC AUTH STATUS ENDPOINT ---
 // Check if user is authenticated (doesn't require a valid token)
 app.get("/api/auth/status", (req, res) => {
-  const authHeader = req.headers["authorization"];
-  const token = authHeader && authHeader.split(" ")[1];
+  const token = req.cookies.token || (req.headers["authorization"] && req.headers["authorization"].split(" ")[1]);
 
   if (!token) {
     return res.json({
@@ -93,6 +105,12 @@ app.get("/api/auth/status", (req, res) => {
   });
 });
 
+// --- LOGOUT ENDPOINT ---
+app.post("/api/logout", (req, res) => {
+  res.clearCookie("token");
+  res.json({ message: "Logged out successfully" });
+});
+
 // --- VIEWS (Calculated Data) ---
 app.get("/api/ranking", async (req, res) => {
   const rs = await db.execute("SELECT * FROM ranking");
@@ -110,7 +128,7 @@ app.get("/api/players", async (req, res) => {
   res.json(rs.rows);
 });
 
-app.post("/api/players", async (req, res) => {
+app.post("/api/players", authenticateToken, async (req, res) => {
   const { name, player_group, ranking_points } = req.body;
   await db.execute({
     sql: "INSERT INTO player (name, player_group, ranking_points) VALUES (?, ?, ?)",
@@ -119,7 +137,7 @@ app.post("/api/players", async (req, res) => {
   res.sendStatus(201);
 });
 
-app.put("/api/players/:id", async (req, res) => {
+app.put("/api/players/:id", authenticateToken, async (req, res) => {
   const { name, player_group, ranking_points } = req.body;
   await db.execute({
     sql: "UPDATE player SET name = ?, player_group = ?, ranking_points = ? WHERE id = ?",
@@ -128,7 +146,7 @@ app.put("/api/players/:id", async (req, res) => {
   res.sendStatus(200);
 });
 
-app.delete("/api/players/:id", async (req, res) => {
+app.delete("/api/players/:id", authenticateToken, async (req, res) => {
   await db.execute({
     sql: "DELETE FROM player WHERE id = ?",
     args: [req.params.id],
@@ -193,7 +211,7 @@ app.get("/api/results", async (req, res) => {
   }
 });
 
-app.post("/api/matches", async (req, res) => {
+app.post("/api/matches", authenticateToken, async (req, res) => {
   const { player1, player2, wins1, wins2, game_date, result, tournament_id } =
     req.body;
   await db.execute({
@@ -211,7 +229,7 @@ app.post("/api/matches", async (req, res) => {
   res.sendStatus(201);
 });
 
-app.put("/api/matches/:id", async (req, res) => {
+app.put("/api/matches/:id", authenticateToken, async (req, res) => {
   const { player1, player2, wins1, wins2, game_date, result, tournament_id } =
     req.body;
   await db.execute({
@@ -230,7 +248,7 @@ app.put("/api/matches/:id", async (req, res) => {
   res.sendStatus(200);
 });
 
-app.delete("/api/matches/:id", async (req, res) => {
+app.delete("/api/matches/:id", authenticateToken, async (req, res) => {
   await db.execute({
     sql: "DELETE FROM matches WHERE id = ?",
     args: [req.params.id],
@@ -244,7 +262,7 @@ app.get("/api/opens", async (req, res) => {
   res.json(rs.rows);
 });
 
-app.post("/api/opens", async (req, res) => {
+app.post("/api/opens", authenticateToken, async (req, res) => {
   const { name, year, active } = req.body;
   await db.execute({
     sql: "INSERT INTO tournament (name, year, active) VALUES (?, ?, ?)",
@@ -253,7 +271,16 @@ app.post("/api/opens", async (req, res) => {
   res.sendStatus(201);
 });
 
-app.delete("/api/opens/:id", async (req, res) => {
+app.put("/api/opens/:id", authenticateToken, async (req, res) => {
+  const { name, year, active } = req.body;
+  await db.execute({
+    sql: "UPDATE tournament SET name = ?, year = ?, active = ? WHERE id = ?",
+    args: [name, year, active ? 1 : 0, req.params.id],
+  });
+  res.sendStatus(200);
+});
+
+app.delete("/api/opens/:id", authenticateToken, async (req, res) => {
   await db.execute({
     sql: "DELETE FROM tournament WHERE id = ?",
     args: [req.params.id],
@@ -280,6 +307,7 @@ app.get("/api/opens/:id/matches", async (req, res) => {
       args: [req.params.id],
     });
 
+    console.log("matchesRs", matchesRs.rows);
     // 3. Return as the object the frontend expects
     res.json({
       tournament: tournamentRs.rows[0],
@@ -297,11 +325,29 @@ app.get("/api/content", async (req, res) => {
   res.json(rs.rows);
 });
 
-app.put("/api/content/:id", async (req, res) => {
+app.put("/api/content/:id", authenticateToken, async (req, res) => {
   const { title, text } = req.body;
   await db.execute({
     sql: "UPDATE content SET title = ?, text = ? WHERE id = ?",
     args: [title, text, req.params.id],
+  });
+  res.sendStatus(200);
+});
+
+// Content create and delete (for admin)
+app.post("/api/content", authenticateToken, async (req, res) => {
+  const { title, text } = req.body;
+  await db.execute({
+    sql: "INSERT INTO content (title, text) VALUES (?, ?)",
+    args: [title, text],
+  });
+  res.sendStatus(201);
+});
+
+app.delete("/api/content/:id", authenticateToken, async (req, res) => {
+  await db.execute({
+    sql: "DELETE FROM content WHERE id = ?",
+    args: [req.params.id],
   });
   res.sendStatus(200);
 });
