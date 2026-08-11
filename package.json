@@ -5,7 +5,14 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "frontend": "cd frontend && npm run dev",
+    "app:start": "./ktp start",
+    "app:stop": "./ktp stop",
+    "app:restart": "./ktp restart",
+    "app:status": "./ktp status",
+    "app:logs": "./ktp logs",
+    "app:build": "./ktp build"
   },
   "dependencies": {
     "@libsql/client": "^0.14.0",

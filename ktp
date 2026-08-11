@@ -1,0 +1,243 @@
+#!/bin/bash
+
+# KTP App Management Script
+# Usage: ./ktp start|stop|build|logs
+
+set -e
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+NC='\033[0m' # No Color
+
+# Project root directory
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FRONTEND_DIR="$PROJECT_ROOT/frontend"
+BACKEND_DIR="$PROJECT_ROOT"
+
+# Log files
+BACKEND_LOG="$PROJECT_ROOT/logs/backend.log"
+FRONTEND_LOG="$PROJECT_ROOT/logs/frontend.log"
+
+# PIDs file
+PIDS_FILE="$PROJECT_ROOT/.ktp-pids"
+
+# Create logs directory if it doesn't exist
+mkdir -p "$PROJECT_ROOT/logs"
+
+# Function to check if a port is in use
+port_in_use() {
+  local port=$1
+  if command -v lsof >/dev/null 2>&1; then
+    lsof -i :$port >/dev/null 2>&1
+  elif command -v netstat >/dev/null 2>&1; then
+    netstat -tuln | grep ":$port " >/dev/null 2>&1
+  else
+    # Fallback: try to use ss
+    ss -tuln | grep ":$port " >/dev/null 2>&1
+  fi
+}
+
+# Function to start the backend server
+start_backend() {
+  echo -e "${BLUE}Starting backend server...${NC}"
+  cd "$BACKEND_DIR"
+  
+  # Check if node_modules exists
+  if [ ! -d "node_modules" ]; then
+    echo -e "${YELLOW}Backend dependencies not found. Installing...${NC}"
+    npm install
+  fi
+  
+  # Start backend with logging
+  nohup node server.js >> "$BACKEND_LOG" 2>&1 &
+  BACKEND_PID=$!
+  
+  # Give it a moment to start
+  sleep 2
+  
+  # Check if it started successfully
+  if ps -p $BACKEND_PID > /dev/null; then
+    echo -e "${GREEN}Backend server started (PID: $BACKEND_PID)${NC}"
+    echo -e "  Logs: $BACKEND_LOG"
+    echo $BACKEND_PID > "$PIDS_FILE.backend"
+  else
+    echo -e "${RED}Failed to start backend server. Check logs:${NC}"
+    echo -e "  $BACKEND_LOG"
+    tail -n 20 "$BACKEND_LOG"
+    kill $BACKEND_PID 2>/dev/null || true
+    return 1
+  fi
+}
+
+# Function to start the frontend server
+start_frontend() {
+  echo -e "${BLUE}Starting frontend dev server...${NC}"
+  cd "$FRONTEND_DIR"
+  
+  # Check if node_modules exists
+  if [ ! -d "node_modules" ]; then
+    echo -e "${YELLOW}Frontend dependencies not found. Installing...${NC}"
+    npm install
+  fi
+  
+  # Start frontend with logging
+  nohup npm run dev >> "$FRONTEND_LOG" 2>&1 &
+  FRONTEND_PID=$!
+  
+  # Give it a moment to start
+  sleep 3
+  
+  # Check if it started successfully
+  if ps -p $FRONTEND_PID > /dev/null; then
+    echo -e "${GREEN}Frontend dev server started (PID: $FRONTEND_PID)${NC}"
+    echo -e "  Logs: $FRONTEND_LOG"
+    echo $FRONTEND_PID > "$PIDS_FILE.frontend"
+  else
+    echo -e "${RED}Failed to start frontend server. Check logs:${NC}"
+    echo -e "  $FRONTEND_LOG"
+    tail -n 20 "$FRONTEND_LOG"
+    kill $FRONTEND_PID 2>/dev/null || true
+    return 1
+  fi
+}
+
+# Function to stop all services
+stop_services() {
+  echo -e "${YELLOW}Stopping services...${NC}"
+  
+  # Stop backend
+  if [ -f "$PIDS_FILE.backend" ]; then
+    BACKEND_PID=$(cat "$PIDS_FILE.backend")
+    if ps -p $BACKEND_PID > /dev/null; then
+      kill $BACKEND_PID
+      echo -e "  Backend server stopped (PID: $BACKEND_PID)"
+    fi
+    rm -f "$PIDS_FILE.backend"
+  fi
+  
+  # Stop frontend
+  if [ -f "$PIDS_FILE.frontend" ]; then
+    FRONTEND_PID=$(cat "$PIDS_FILE.frontend")
+    if ps -p $FRONTEND_PID > /dev/null; then
+      kill $FRONTEND_PID
+      echo -e "  Frontend dev server stopped (PID: $FRONTEND_PID)"
+    fi
+    rm -f "$PIDS_FILE.frontend"
+  fi
+  
+  # Also kill any node processes in project directories
+  pkill -f "node server.js" 2>/dev/null || true
+  pkill -f "vite" 2>/dev/null || true
+  
+  echo -e "${GREEN}All services stopped.${NC}"
+}
+
+# Function to show logs
+show_logs() {
+  echo -e "${BLUE}=== Backend Logs ($BACKEND_LOG) ===${NC}"
+  tail -n 30 "$BACKEND_LOG" || echo "  No backend logs found"
+  echo ""
+  echo -e "${BLUE}=== Frontend Logs ($FRONTEND_LOG) ===${NC}"
+  tail -n 30 "$FRONTEND_LOG" || echo "  No frontend logs found"
+}
+
+# Function to show status
+show_status() {
+  echo -e "${BLUE}Service Status:${NC}"
+  
+  # Backend status
+  if [ -f "$PIDS_FILE.backend" ]; then
+    BACKEND_PID=$(cat "$PIDS_FILE.backend")
+    if ps -p $BACKEND_PID > /dev/null; then
+      echo -e "  ${GREEN}Backend: Running (PID: $BACKEND_PID)${NC}"
+    else
+      echo -e "  ${RED}Backend: Not running (stale PID: $BACKEND_PID)${NC}"
+    fi
+  else
+    echo -e "  ${RED}Backend: Not running${NC}"
+  fi
+  
+  # Frontend status
+  if [ -f "$PIDS_FILE.frontend" ]; then
+    FRONTEND_PID=$(cat "$PIDS_FILE.frontend")
+    if ps -p $FRONTEND_PID > /dev/null; then
+      echo -e "  ${GREEN}Frontend: Running (PID: $FRONTEND_PID)${NC}"
+    else
+      echo -e "  ${RED}Frontend: Not running (stale PID: $FRONTEND_PID)${NC}"
+    fi
+  else
+    echo -e "  ${RED}Frontend: Not running${NC}"
+  fi
+}
+
+# Function to build frontend
+build_frontend() {
+  echo -e "${BLUE}Building frontend...${NC}"
+  cd "$FRONTEND_DIR"
+  npm run build
+}
+
+# Main command handling
+case "$1" in
+  start)
+    echo -e "${GREEN}=== Starting KTP Application ===${NC}"
+    echo ""
+    
+    # Clean up any existing PIDs
+    stop_services > /dev/null 2>&1 || true
+    
+    # Start services
+    start_backend
+    if [ $? -eq 0 ]; then
+      start_frontend
+      if [ $? -eq 0 ]; then
+        echo ""
+        echo -e "${GREEN}=== Application Started Successfully ===${NC}"
+        echo -e "  Backend:  http://localhost:3001"
+        echo -e "  Frontend: http://localhost:5173"
+        echo ""
+        echo -e "${YELLOW}To stop: ${NC}./ktp stop"
+        echo -e "${YELLOW}To view logs: ${NC}./ktp logs"
+        echo -e "${YELLOW}To check status: ${NC}./ktp status"
+      else
+        stop_services > /dev/null 2>&1 || true
+        exit 1
+      fi
+    else
+      stop_services > /dev/null 2>&1 || true
+      exit 1
+    fi
+    ;;
+  stop)
+    stop_services
+    ;;
+  restart)
+    stop_services
+    sleep 1
+    ./ktp start
+    ;;
+  status)
+    show_status
+    ;;
+  logs)
+    show_logs
+    ;;
+  build)
+    build_frontend
+    ;;
+  *)
+    echo -e "${RED}Usage: ./ktp {start|stop|restart|status|logs|build}${NC}"
+    echo ""
+    echo "Commands:"
+    echo "  start   - Start both backend and frontend servers"
+    echo "  stop    - Stop all running services"
+    echo "  restart - Restart all services"
+    echo "  status  - Show running status of services"
+    echo "  logs    - Show recent logs from both services"
+    echo "  build   - Build frontend for production"
+    exit 1
+    ;;
+esac
