@@ -102,8 +102,12 @@ const api = {
   get: (url, options) => request(url, { ...options, method: "GET" }),
   post: (url, body, options) =>
     request(url, { ...options, method: "POST", body: JSON.stringify(body) }),
-  put: (url, body, options) =>
-    request(url, { ...options, method: "PUT", body: JSON.stringify(body) }),
+  put: (url, body, options) => {
+    if (isDev) {
+      console.log(`[API PUT] ${url}`, body);
+    }
+    return request(url, { ...options, method: "PUT", body: JSON.stringify(body) });
+  },
   patch: (url, body, options) =>
     request(url, { ...options, method: "PATCH", body: JSON.stringify(body) }),
   delete: (url, options) => request(url, { ...options, method: "DELETE" }),

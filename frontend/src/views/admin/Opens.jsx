@@ -35,6 +35,11 @@ const MatchRow = ({ match, players, onSave }) => {
   }, [match]);
 
   const handleSave = async () => {
+    if (!match || !match.id) {
+      alert("Virhe: Ottelutietoja ei löydy. Yritä uudelleen.");
+      setIsEditing(false);
+      return;
+    }
     await onSave(match.id, editData);
     setIsEditing(false);
   };
@@ -285,8 +290,16 @@ const AdminOpens = () => {
         return;
       }
 
-      console.log("Setting tournamentGames to:", data.matches);
-      setTournamentGames(data.matches);
+      // Verify each match has an id
+      const matchesWithIds = data.matches.map(m => {
+        if (!m.id) {
+          console.warn("Match without id found:", m);
+        }
+        return m;
+      });
+
+      console.log("Setting tournamentGames to:", matchesWithIds);
+      setTournamentGames(matchesWithIds);
     } catch (err) {
       console.error("Tournament games fetch failed:", err);
       setTournamentGames([]);
@@ -298,11 +311,21 @@ const AdminOpens = () => {
   };
 
   const handleSaveMatch = async (matchId, updatedData) => {
+    if (!matchId) {
+      alert("Virhe: Ottelulla ei ole ID:tä. Yritä uudelleen.");
+      return;
+    }
     try {
-      await matchService.update(matchId, updatedData);
+      // Ensure the match stays associated with the current tournament
+      const dataWithTournament = {
+        ...updatedData,
+        tournament_id: selectedOpenId || updatedData.tournament_id,
+      };
+      await matchService.update(matchId, dataWithTournament);
       fetchTournamentGames();
-    } catch {
-      alert("Tallennus epäonnistui.");
+    } catch (err) {
+      console.error("Save match error:", err);
+      alert("Tallennus epäonnistui: " + (err.message || "Tuntematon virhe"));
     }
   };
 

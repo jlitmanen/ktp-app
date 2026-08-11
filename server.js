@@ -232,7 +232,17 @@ app.post("/api/matches", authenticateToken, async (req, res) => {
 app.put("/api/matches/:id", authenticateToken, async (req, res) => {
   const { player1, player2, wins1, wins2, game_date, result, tournament_id } =
     req.body;
-  await db.execute({
+  console.log(`[PUT /api/matches/${req.params.id}] Updating match with data:`, {
+    player1,
+    player2,
+    wins1,
+    wins2,
+    game_date,
+    result,
+    tournament_id,
+  });
+  
+  const resultData = await db.execute({
     sql: "UPDATE matches SET player1=?, player2=?, wins1=?, wins2=?, game_date=?, result=?, tournament_id=? WHERE id=?",
     args: [
       player1,
@@ -245,6 +255,14 @@ app.put("/api/matches/:id", authenticateToken, async (req, res) => {
       req.params.id,
     ],
   });
+  
+  console.log(`[PUT /api/matches/${req.params.id}] Rows affected:`, resultData.rowsAffected || resultData.changes);
+  
+  if ((resultData.rowsAffected || resultData.changes) === 0) {
+    console.warn(`[PUT /api/matches/${req.params.id}] No rows updated - match may not exist`);
+    return res.status(404).json({ error: "Ottelua ei löydy" });
+  }
+  
   res.sendStatus(200);
 });
 
@@ -298,7 +316,7 @@ app.get("/api/opens/:id/matches", async (req, res) => {
 
     // 2. Get the matches
     const matchesRs = await db.execute({
-      sql: `SELECT m.*, p1.name as home, p2.name as away
+      sql: `SELECT m.id, m.player1, m.player2, m.wins1, m.wins2, m.game_date, m.result, m.tournament_id, m.played, m.reported, p1.name as home, p2.name as away
             FROM matches m
             LEFT JOIN player p1 ON m.player1 = p1.id
             LEFT JOIN player p2 ON m.player2 = p2.id
