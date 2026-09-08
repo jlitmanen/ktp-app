@@ -1,6 +1,10 @@
 import PocketBase from 'pocketbase';
+import { LocalAuthStore } from 'pocketbase';
 
-const pb = new PocketBase('https://taken-hold.pockethost.io');
+// Create a local auth store that persists to localStorage
+const authStore = new LocalAuthStore('pb_auth');
+
+const pb = new PocketBase('https://taken-hold.pockethost.io', authStore);
 
 export const authService = {
   login: async (credentials) => {
@@ -13,7 +17,15 @@ export const authService = {
   logout: async () => {
     pb.authStore.clear();
   },
-  checkStatus: () => pb.authStore.isValid,
+  checkStatus: () => {
+    const isValid = pb.authStore.isValid;
+    const user = pb.authStore.model;
+    return {
+      isAuthenticated: isValid,
+      user: user ? { id: user.id, username: user.username } : null,
+    };
+  },
+  getToken: () => pb.authStore.token,
 };
 export default {
   auth: authService,

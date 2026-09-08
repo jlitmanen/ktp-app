@@ -1,17 +1,17 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import cookieParser from "cookie-parser";
 import { createClient } from "@libsql/client";
-import jwt from "jsonwebtoken";
-import bcrypt from "bcrypt";
+import PocketBase from 'pocketbase';
 
-const JWT_SECRET = process.env.JWT_SECRET || "your-super-secret-key";
 const app = express();
 const db = createClient({
   url: process.env.TURSO_URL,
   authToken: process.env.TURSO_TOKEN,
 });
+
+// PocketBase client for server-side token validation
+const pb = new PocketBase('https://taken-hold.pockethost.io');
 
 const frontendUrl = (process.env.FRONTEND_URL || "http://localhost:5173").replace(/\/$/, '');
 
@@ -22,67 +22,38 @@ app.use(
   }),
 );
 app.use(express.json());
-app.use(cookieParser());
-
-// --- LOGIN ROUTE ---
-app.post("/api/login", async (req, res) => {
-  const { username, password } = req.body;
-
-  try {
-    // 1. Find user in Turso
-    const rs = await db.execute({
-      sql: "SELECT * FROM users WHERE username = ? AND enabled = 1",
-      args: [username],
-    });
-
-    const user = rs.rows[0];
-
-    // 2. Verify user exists and password is correct
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
-      return res
-        .status(401)
-        .json({ error: "Virheellinen käyttäjätunnus tai salasana" });
-    }
-
-    // 3. Generate JWT
-    const token = jwt.sign(
-      { id: user.id, username: user.username },
-      JWT_SECRET,
-      { expiresIn: "24h" },
-    );
-
-    // Set JWT as httpOnly cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      maxAge: 24 * 60 * 60 * 1000, // 24 hours
-    });
-
-    res.json({ username: user.username });
-  } catch (err) {
-    res.status(500).json({ error: "Kirjautuminen epäonnistui" });
-  }
-});
 
 // --- MIDDLEWARE TO PROTECT ROUTES ---
-const authenticateToken = (req, res, next) => {
-  // Check cookie first, then Authorization header
-  const token = req.cookies.token || (req.headers["authorization"] && req.headers["authorization"].split(" ")[1]);
+// Validate PocketBase token from Authorization header
+const authenticatePocketBase = async (req, res, next) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
 
-  if (!token) return res.sendStatus(401);
+  if (!token) return res.status(401).json({ error: "Tunnistautuminen vaaditaan" });
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.sendStatus(403);
-    req.user = user;
+  try {
+    // Load the auth store with the token and verify it
+    pb.authStore.save(token);
+    
+    // Verify the token by making a light request to PocketBase
+    // This will throw if the token is invalid
+    await pb.collection('users').authRefresh();
+    
+    const user = pb.authStore.model;
+    if (!user) return res.status(403).json({ error: "Pääsy evätty" });
+    
+    req.user = { id: user.id, username: user.username };
     next();
-  });
+  } catch (err) {
+    console.error("PocketBase auth error:", err);
+    return res.status(403).json({ error: "Istunto vanhentunut" });
+  }
 };
 
 // --- PUBLIC AUTH STATUS ENDPOINT ---
-// Check if user is authenticated (doesn't require a valid token)
-app.get("/api/auth/status", (req, res) => {
-  const token = req.cookies.token || (req.headers["authorization"] && req.headers["authorization"].split(" ")[1]);
+app.get("/api/auth/status", async (req, res) => {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader && authHeader.split(" ")[1];
 
   if (!token) {
     return res.json({
@@ -91,27 +62,33 @@ app.get("/api/auth/status", (req, res) => {
     });
   }
 
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) {
+  try {
+    pb.authStore.save(token);
+    await pb.collection('users').authRefresh();
+    const user = pb.authStore.model;
+    
+    if (!user) {
       return res.json({
         isAuthenticated: false,
         user: null,
       });
     }
+    
     res.json({
       isAuthenticated: true,
-      user: user,
+      user: { id: user.id, username: user.username },
     });
-  });
+  } catch (err) {
+    return res.json({
+      isAuthenticated: false,
+      user: null,
+    });
+  }
 });
 
 // --- LOGOUT ENDPOINT ---
 app.post("/api/logout", (req, res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: true,
-    sameSite: "none",
-  });
+  pb.authStore.clear();
   res.json({ message: "Logged out successfully" });
 });
 
@@ -132,7 +109,7 @@ app.get("/api/players", async (req, res) => {
   res.json(rs.rows);
 });
 
-app.post("/api/players", authenticateToken, async (req, res) => {
+app.post("/api/players", authenticatePocketBase, async (req, res) => {
   const { name, player_group, ranking_points } = req.body;
   await db.execute({
     sql: "INSERT INTO player (name, player_group, ranking_points) VALUES (?, ?, ?)",
@@ -141,7 +118,7 @@ app.post("/api/players", authenticateToken, async (req, res) => {
   res.sendStatus(201);
 });
 
-app.put("/api/players/:id", authenticateToken, async (req, res) => {
+app.put("/api/players/:id", authenticatePocketBase, async (req, res) => {
   const { name, player_group, ranking_points } = req.body;
   await db.execute({
     sql: "UPDATE player SET name = ?, player_group = ?, ranking_points = ? WHERE id = ?",
@@ -150,7 +127,7 @@ app.put("/api/players/:id", authenticateToken, async (req, res) => {
   res.sendStatus(200);
 });
 
-app.delete("/api/players/:id", authenticateToken, async (req, res) => {
+app.delete("/api/players/:id", authenticatePocketBase, async (req, res) => {
   await db.execute({
     sql: "DELETE FROM player WHERE id = ?",
     args: [req.params.id],
@@ -215,7 +192,7 @@ app.get("/api/results", async (req, res) => {
   }
 });
 
-app.post("/api/matches", authenticateToken, async (req, res) => {
+app.post("/api/matches", authenticatePocketBase, async (req, res) => {
   const { player1, player2, wins1, wins2, game_date, result, tournament_id } =
     req.body;
   await db.execute({
@@ -233,7 +210,7 @@ app.post("/api/matches", authenticateToken, async (req, res) => {
   res.sendStatus(201);
 });
 
-app.put("/api/matches/:id", authenticateToken, async (req, res) => {
+app.put("/api/matches/:id", authenticatePocketBase, async (req, res) => {
   const { player1, player2, wins1, wins2, game_date, result, tournament_id } =
     req.body;
   console.log(`[PUT /api/matches/${req.params.id}] Updating match with data:`, {
@@ -270,7 +247,7 @@ app.put("/api/matches/:id", authenticateToken, async (req, res) => {
   res.sendStatus(200);
 });
 
-app.delete("/api/matches/:id", authenticateToken, async (req, res) => {
+app.delete("/api/matches/:id", authenticatePocketBase, async (req, res) => {
   await db.execute({
     sql: "DELETE FROM matches WHERE id = ?",
     args: [req.params.id],
@@ -284,7 +261,7 @@ app.get("/api/opens", async (req, res) => {
   res.json(rs.rows);
 });
 
-app.post("/api/opens", authenticateToken, async (req, res) => {
+app.post("/api/opens", authenticatePocketBase, async (req, res) => {
   const { name, year, active } = req.body;
   await db.execute({
     sql: "INSERT INTO tournament (name, year, active) VALUES (?, ?, ?)",
@@ -293,7 +270,7 @@ app.post("/api/opens", authenticateToken, async (req, res) => {
   res.sendStatus(201);
 });
 
-app.put("/api/opens/:id", authenticateToken, async (req, res) => {
+app.put("/api/opens/:id", authenticatePocketBase, async (req, res) => {
   const { name, year, active } = req.body;
   await db.execute({
     sql: "UPDATE tournament SET name = ?, year = ?, active = ? WHERE id = ?",
@@ -302,7 +279,7 @@ app.put("/api/opens/:id", authenticateToken, async (req, res) => {
   res.sendStatus(200);
 });
 
-app.delete("/api/opens/:id", authenticateToken, async (req, res) => {
+app.delete("/api/opens/:id", authenticatePocketBase, async (req, res) => {
   await db.execute({
     sql: "DELETE FROM tournament WHERE id = ?",
     args: [req.params.id],
@@ -347,7 +324,7 @@ app.get("/api/content", async (req, res) => {
   res.json(rs.rows);
 });
 
-app.put("/api/content/:id", authenticateToken, async (req, res) => {
+app.put("/api/content/:id", authenticatePocketBase, async (req, res) => {
   const { title, text } = req.body;
   await db.execute({
     sql: "UPDATE content SET title = ?, text = ? WHERE id = ?",
@@ -357,7 +334,7 @@ app.put("/api/content/:id", authenticateToken, async (req, res) => {
 });
 
 // Content create and delete (for admin)
-app.post("/api/content", authenticateToken, async (req, res) => {
+app.post("/api/content", authenticatePocketBase, async (req, res) => {
   const { title, text } = req.body;
   await db.execute({
     sql: "INSERT INTO content (title, text) VALUES (?, ?)",
@@ -366,7 +343,7 @@ app.post("/api/content", authenticateToken, async (req, res) => {
   res.sendStatus(201);
 });
 
-app.delete("/api/content/:id", authenticateToken, async (req, res) => {
+app.delete("/api/content/:id", authenticatePocketBase, async (req, res) => {
   await db.execute({
     sql: "DELETE FROM content WHERE id = ?",
     args: [req.params.id],

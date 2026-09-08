@@ -1,6 +1,9 @@
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 const isDev = import.meta.env.DEV;
 
+// Import authService to get the PocketBase token
+import { authService } from './authService';
+
 /**
  * Sanitize object to prevent XSS and injection attacks
  */
@@ -48,11 +51,15 @@ async function request(endpoint, options = {}) {
     }
   }
 
+  // Get PocketBase token for authorization
+  const token = authService.getToken();
+  
   const config = {
     ...sanitizedOptions,
     headers: {
       "Content-Type": "application/json",
       Accept: "application/json",
+      ...(token && { "Authorization": `Bearer ${token}` }),
       ...sanitizedOptions.headers,
     },
     credentials: 'include', // Required for cookies to be sent
