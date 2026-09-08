@@ -217,11 +217,9 @@ const AdminResults = () => {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchStaticData();
   }, []);
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchResults(currentPage);
   }, [currentPage]);
 
