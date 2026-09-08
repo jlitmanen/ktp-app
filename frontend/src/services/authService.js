@@ -1,15 +1,19 @@
-import api from "./api";
+import PocketBase from 'pocketbase';
+
+const pb = new PocketBase('https://taken-hold.pockethost.io');
 
 export const authService = {
   login: async (credentials) => {
-    const data = await api.post("/api/login", credentials);
-    // Token is now stored in httpOnly cookie by backend
-    return data;
+    const authData = await pb.collection('users').authWithPassword(
+        credentials.username,
+        credentials.password,
+    );
+    return authData;
   },
   logout: async () => {
-    await api.post("/api/logout");
+    pb.authStore.clear();
   },
-  checkStatus: () => api.get("/api/auth/status"),
+  checkStatus: () => pb.authStore.isValid,
 };
 export default {
   auth: authService,

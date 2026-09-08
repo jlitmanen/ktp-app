@@ -8,7 +8,7 @@ import {
 const MatchRow = ({ match, players, onSave }) => {
   const [isEditing, setIsEditing] = useState(false);
 
-  // Local state for editing
+  // Local state for editing - initialized from props
   const [editData, setEditData] = useState({
     player1: match?.player1 || "",
     player2: match?.player2 || "",
@@ -18,21 +18,6 @@ const MatchRow = ({ match, players, onSave }) => {
     result: match?.result || "",
     tournament_id: match?.tournament_id || null,
   });
-
-  // Sync with prop changes
-  useEffect(() => {
-    if (match) {
-      setEditData({
-        player1: match.player1 || "",
-        player2: match.player2 || "",
-        wins1: match.wins1 || 0,
-        wins2: match.wins2 || 0,
-        game_date: match.game_date || match.date || "",
-        result: match.result || "",
-        tournament_id: match.tournament_id || null,
-      });
-    }
-  }, [match]);
 
   const handleSave = async () => {
     if (!match || !match.id) {
@@ -220,10 +205,6 @@ const AdminOpens = () => {
 
   const years = [2024, 2025, 2026, 2027];
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
   const fetchInitialData = async () => {
     try {
       setLoading(true);
@@ -239,6 +220,11 @@ const AdminOpens = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchInitialData();
+  }, []);
 
   const handleSelectChange = (e) => {
     const val = e.target.value;

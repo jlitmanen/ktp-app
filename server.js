@@ -245,7 +245,7 @@ app.put("/api/matches/:id", authenticateToken, async (req, res) => {
     result,
     tournament_id,
   });
-  
+
   const resultData = await db.execute({
     sql: "UPDATE matches SET player1=?, player2=?, wins1=?, wins2=?, game_date=?, result=?, tournament_id=? WHERE id=?",
     args: [
@@ -259,14 +259,14 @@ app.put("/api/matches/:id", authenticateToken, async (req, res) => {
       req.params.id,
     ],
   });
-  
+
   console.log(`[PUT /api/matches/${req.params.id}] Rows affected:`, resultData.rowsAffected || resultData.changes);
-  
+
   if ((resultData.rowsAffected || resultData.changes) === 0) {
     console.warn(`[PUT /api/matches/${req.params.id}] No rows updated - match may not exist`);
     return res.status(404).json({ error: "Ottelua ei löydy" });
   }
-  
+
   res.sendStatus(200);
 });
 

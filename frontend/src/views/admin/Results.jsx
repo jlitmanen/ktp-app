@@ -6,22 +6,17 @@ import {
 } from "../../services/dataService";
 
 // --- SUB-COMPONENT: INLINE EDITOR ---
-const ResultRow = ({ result, players, opens, onSave, onDelete }) => {
+const ResultRow = ({ result, players, onSave, onDelete }) => {
   const [isEditing, setIsEditing] = useState(false);
-  const [editData, setEditData] = useState({ ...result });
-
-  // Sync internal state if props change
-  useEffect(() => {
-    setEditData({
-      ...result,
-      home: result.player1 || result.home_id || result.home,
-      away: result.player2 || result.away_id || result.away,
-      game_date:
-        result.game_date?.substring(0, 10) ||
-        result.date?.substring(0, 10) ||
-        "",
-    });
-  }, [result]);
+  const [editData, setEditData] = useState({
+    ...result,
+    home: result.player1 || result.home_id || result.home,
+    away: result.player2 || result.away_id || result.away,
+    game_date:
+      result.game_date?.substring(0, 10) ||
+      result.date?.substring(0, 10) ||
+      "",
+  });
 
   const handleLocalSave = async () => {
     await onSave(editData);
@@ -193,13 +188,6 @@ const AdminResults = () => {
     tournament_id: "",
   });
 
-  useEffect(() => {
-    fetchStaticData();
-  }, []);
-  useEffect(() => {
-    fetchResults(currentPage);
-  }, [currentPage]);
-
   const fetchStaticData = async () => {
     try {
       const [p, o] = await Promise.all([
@@ -209,6 +197,7 @@ const AdminResults = () => {
       setPlayers(p || []);
       setOpens(o || []);
     } catch (err) {
+      console.error("Error fetching static data:", err);
       setError("Datan haku epäonnistui.");
     }
   };
@@ -220,11 +209,21 @@ const AdminResults = () => {
       setResults(data.items || []);
       setTotalPages(data.totalPages || 1);
     } catch (err) {
+      console.error("Error fetching results:", err);
       setError("Tulosten haku epäonnistui.");
     } finally {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchStaticData();
+  }, []);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchResults(currentPage);
+  }, [currentPage]);
 
   const handleCreateMatch = async () => {
     if (!newData.home || !newData.away) return alert("Valitse pelaajat!");
@@ -242,6 +241,7 @@ const AdminResults = () => {
       setIsAdding(false);
       fetchResults(1); // Back to first page to see the new entry
     } catch (err) {
+      console.error("Error creating match:", err);
       setError("Lisäys epäonnistui.");
     }
   };
@@ -258,6 +258,7 @@ const AdminResults = () => {
       await matchService.update(data.id, payload);
       fetchResults(currentPage);
     } catch (err) {
+      console.error("Error saving result:", err);
       setError("Tallennus epäonnistui.");
     }
   };
@@ -444,7 +445,6 @@ const AdminResults = () => {
                     key={r.id}
                     result={r}
                     players={players}
-                    opens={opens}
                     onSave={handleSaveResult}
                     onDelete={handleDelete}
                   />

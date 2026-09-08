@@ -8,12 +8,12 @@ const Match = ({ match }) => {
   return (
     <div className="bg-white border border-alabaster_grey-400 rounded-md shadow-sm overflow-hidden mb-4">
       <div className="flex items-center justify-between border-b border-alabaster_grey-200 p-2">
-        <span className="text-sm font-medium text-black truncate flex-grow mr-2" title={homeName}>{homeName}</span>
-        <span className="bg-prussian_blue text-white text-xs font-bold px-2 py-1 rounded min-w-[1.5rem] text-center">{match.wins1 ?? 0}</span>
+        <span className="text-sm font-medium text-black truncate grow mr-2" title={homeName}>{homeName}</span>
+        <span className="bg-prussian_blue text-white text-xs font-bold px-2 py-1 rounded min-w-6 text-center">{match.wins1 ?? 0}</span>
       </div>
       <div className="flex items-center justify-between p-2">
-        <span className="text-sm font-medium text-black truncate flex-grow mr-2" title={awayName}>{awayName}</span>
-        <span className="bg-prussian_blue text-white text-xs font-bold px-2 py-1 rounded min-w-[1.5rem] text-center">{match.wins2 ?? 0}</span>
+        <span className="text-sm font-medium text-black truncate grow mr-2" title={awayName}>{awayName}</span>
+        <span className="bg-prussian_blue text-white text-xs font-bold px-2 py-1 rounded min-w-6 text-center">{match.wins2 ?? 0}</span>
       </div>
     </div>
   );
@@ -156,7 +156,7 @@ const Open = () => {
           <h1 className="text-3xl font-extrabold text-prussian_blue text-center">
             {currentOpen?.name} {currentOpen?.year}
           </h1>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 items-stretch">
             {Object.keys(rounds).map((roundKey) => (
               <div key={roundKey} className="flex flex-col">
@@ -165,7 +165,7 @@ const Open = () => {
                   {roundKey === "2" && "Semifinaali"}
                   {roundKey === "3" && "Finaali"}
                 </div>
-                <div className="bg-alabaster_grey-800 p-4 rounded-b-lg flex-grow flex flex-col justify-around min-h-[10rem] shadow-sm">
+                <div className="bg-alabaster_grey-800 p-4 rounded-b-lg grow flex flex-col justify-around min-h-40 shadow-sm">
                   {rounds[roundKey].length > 0 ? (
                     rounds[roundKey].map((match) => (
                       <Match key={match.id} match={match} />

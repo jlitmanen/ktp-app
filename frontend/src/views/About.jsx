@@ -91,7 +91,7 @@ const About = () => {
         </div>
       </div>
       <div className="md:col-span-2">
-        <div className="bg-white rounded-lg border border-alabaster_grey-400 p-6 shadow-sm min-h-[30rem]">
+        <div className="bg-white rounded-lg border border-alabaster_grey-400 p-6 shadow-sm min-h-120">
           {content[activeTab] && (
             <div className="fade-in">
               <h2 className="text-2xl font-bold text-prussian_blue border-b border-alabaster_grey-300 pb-3 mb-6">

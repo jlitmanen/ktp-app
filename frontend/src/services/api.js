@@ -6,7 +6,7 @@ const isDev = import.meta.env.DEV;
  */
 function sanitizeObject(obj) {
   if (typeof obj !== 'object' || obj === null) return obj;
-  
+
   const sanitized = {};
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === 'string') {
@@ -34,16 +34,17 @@ async function request(endpoint, options = {}) {
   let sanitizedOptions = options;
   if (options.body && !endpoint.includes('/login')) {
     try {
-      const bodyObj = typeof options.body === 'string' 
-        ? JSON.parse(options.body) 
+      const bodyObj = typeof options.body === 'string'
+        ? JSON.parse(options.body)
         : options.body;
       sanitizedOptions = {
         ...options,
         body: JSON.stringify(sanitizeObject(bodyObj))
       };
-    } catch (e) {
+    } catch (err) {
       // If parsing fails, use original body
       sanitizedOptions = options;
+      console.debug("Parsing failed:", err);
     }
   }
 

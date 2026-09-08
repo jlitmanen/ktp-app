@@ -53,8 +53,6 @@ const Ranking = () => {
     );
   }
 
-  let lastRyhma = null;
-
   return (
     <div className="space-y-6">
       <div className="flex border-b border-alabaster_grey-400">
@@ -106,8 +104,8 @@ const Ranking = () => {
           <tbody className="bg-white divide-y divide-alabaster_grey-200">
             {players.map((player, index) => {
               const currentRyhma = player.Ryhma || 0;
-              const isNewGroup = activeTab === "yleinen" && lastRyhma !== null && lastRyhma !== currentRyhma;
-              lastRyhma = currentRyhma;
+              const previousRyhma = index > 0 ? (players[index - 1].Ryhma || 0) : null;
+              const isNewGroup = activeTab === "yleinen" && previousRyhma !== null && previousRyhma !== currentRyhma;
 
               return (
                 <React.Fragment key={player.player_id || player.id || index}>

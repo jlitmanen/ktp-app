@@ -32,10 +32,6 @@ const AdminContent = () => {
     "image",
   ];
 
-  useEffect(() => {
-    fetchContent();
-  }, []);
-
   const fetchContent = async () => {
     try {
       setLoading(true);
@@ -49,6 +45,11 @@ const AdminContent = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchContent();
+  }, []);
 
   const handleAdd = () => {
     setEditingContent({ title: "", text: "" });

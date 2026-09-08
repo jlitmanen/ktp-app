@@ -8,10 +8,6 @@ const AdminRanking = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchPlayers();
-  }, []);
-
   const fetchPlayers = async () => {
     try {
       setLoading(true);
@@ -25,6 +21,11 @@ const AdminRanking = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchPlayers();
+  }, []);
 
   const handleAddPlayer = () => {
     setEditingPlayer({ name: "" });
