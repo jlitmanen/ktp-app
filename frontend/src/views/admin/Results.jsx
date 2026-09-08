@@ -274,7 +274,7 @@ const AdminResults = () => {
     <div className="space-y-6">
       <div className="flex justify-end">
         {!isAdding && (
-          <button 
+          <button
             className="px-6 py-3 bg-orange text-prussian_blue font-bold rounded-md hover:bg-orange-600 transition-colors shadow-md"
             onClick={() => setIsAdding(true)}
           >
